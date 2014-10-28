@@ -11,15 +11,16 @@ SCRIPT_LICENSE = 'GPL3'
 SCRIPT_DESC = "encrypt messages in a channel with libsodium"
 #SCRIPT_COMMAND = 'weesodium'
 
-def encrypt(msg, key, max_length=250):
+def encrypt(msg, key, max_length=None):
     # math.ceil(384 / 3) * 4 = 512
 
-    # FIXME: calculate how much space we actually need
-    # these are probably not correct
-    pad_length = max_length - libnacl.crypto_secretbox_NONCEBYTES \
-                 - libnacl.crypto_secretbox_MACBYTES
-    if len(msg) < pad_length:
-        msg += b'\x00' * (pad_length - len(msg))
+    if max_length is not None:
+        # FIXME: calculate how much space we actually need
+        # these are probably not correct
+        pad_length = max_length - libnacl.crypto_secretbox_NONCEBYTES \
+                     - libnacl.crypto_secretbox_MACBYTES
+        if len(msg) < pad_length:
+            msg += b'\x00' * (pad_length - len(msg))
 
     box = libnacl.secret.SecretBox(key)
     ctxt = box.encrypt(msg)
@@ -90,9 +91,9 @@ def out_privmsg(data, modifier, modifier_data, string):
     # maybe use weesodium.[plugin].[server].[channel] or local buffer variable?
     key = b'\xf8\xe2\xdb\x94`\xdb7\xd1I08\xcf\xe0O \xf8\xb0\xcd\xc2\xd6\xf4\x0e\x9f\x8f&aps\x82\xd9\xf1\xd5'
 
-    max_length = 250
+    max_length = 270
     if len(result['text']) > max_length:
-        # segment messages larger thatn max_length
+        # segment messages larger than max_length
         out = b""
         splits = 1 + (len(result['text']) // max_length)
         for i in range(0, splits):
