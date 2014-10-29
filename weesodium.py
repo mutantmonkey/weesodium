@@ -106,7 +106,8 @@ def out_privmsg_cb(data, modifier, modifier_data, string):
                         max_length)
 
                     # FIXME: sanitize these bits
-                    out += b"PRIVMSG {to} :{text}\n".format(to=result['to'], text=text)
+                    out += b"PRIVMSG {to} :{text}\n".format(to=result['to'],
+                                                            text=text)
 
                 return out
             else:
@@ -155,11 +156,12 @@ if weechat.register(SCRIPT_NAME, SCRIPT_AUTHOR, SCRIPT_VERSION, SCRIPT_LICENSE,
     # consider adding: notice, topic
     weechat.hook_modifier('irc_in_privmsg', 'in_privmsg_cb', '')
     weechat.hook_modifier('irc_out_privmsg', 'out_privmsg_cb', '')
-    weechat.hook_command(SCRIPT_NAME, "change weesodium options",
-    "[enable KEY] || "
-    "[disable]",
-    "",
-    "enable %-|| "
-    "disable",
-    "command_cb",
-    "")
+    weechat.hook_command(SCRIPT_NAME,
+                         "change weesodium options",
+                         "[enable KEY] || "
+                         "[disable]",
+                         "",
+                         "enable %-|| "
+                         "disable",
+                         "command_cb",
+                         "")
