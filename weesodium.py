@@ -126,6 +126,13 @@ def command_cb(data, buf, args):
 
     if len(args) == 2 and args[0] == b'enable':
         server, channel = get_buffer_info(buf)
+        if len(args[1]) != libnacl.crypto_secretbox_KEYBYTES:
+            weechat.prnt(
+                buf,
+                "The weesodium key must be exactly {} bytes long.".format(
+                    libnacl.crypto_secretbox_KEYBYTES))
+            return weechat.WEECHAT_RC_ERROR
+
         channel_keys['{0}.{1}'.format(server, channel)] = args[1]
         return weechat.WEECHAT_RC_OK
     elif len(args) == 1 and args[0] == b'disable':
