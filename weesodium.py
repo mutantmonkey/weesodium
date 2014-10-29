@@ -1,6 +1,7 @@
 # encoding: utf-8
 
 import base64
+import hashlib
 import libnacl.secret
 import shlex
 import weechat
@@ -127,14 +128,13 @@ def command_cb(data, buf, args):
 
     if len(args) == 2 and args[0] == b'enable':
         server, channel = get_buffer_info(buf)
-        if len(args[1]) != libnacl.crypto_secretbox_KEYBYTES:
-            weechat.prnt(
-                buf,
-                "The weesodium key must be exactly {} bytes long.".format(
-                    libnacl.crypto_secretbox_KEYBYTES))
-            return weechat.WEECHAT_RC_ERROR
+        key = hashlib.sha256(args[1]).digest()
 
-        channel_keys['{0}.{1}'.format(server, channel)] = args[1]
+        # requires python 2.7.8 or 3.4 :(
+        #key = hashlib.pbkdf_hmac('sha256', args[1], libnacl.randombytes(16),
+        #                         100000)
+
+        channel_keys['{0}.{1}'.format(server, channel)] = key
         return weechat.WEECHAT_RC_OK
     elif len(args) == 1 and args[0] == b'disable':
         server, channel = get_buffer_info(buf)
