@@ -131,12 +131,16 @@ def command_cb(data, buf, args):
         #                         100000)
 
         channel_keys['{0}.{1}'.format(server, channel)] = key
+
+        weechat.prnt(buf, "This conversation is now encrypted.")
         weechat.bar_item_update(SCRIPT_NAME)
 
         return weechat.WEECHAT_RC_OK
     elif len(args) == 1 and args[0] == b'disable':
         server, channel = get_buffer_info(buf)
         del channel_keys['{0}.{1}'.format(server, channel)]
+
+        weechat.prnt(buf, "This conversation is no longer encrypted.")
         weechat.bar_item_update(SCRIPT_NAME)
 
         return weechat.WEECHAT_RC_OK
