@@ -8,7 +8,7 @@ import weechat
 
 SCRIPT_NAME = 'weesodium'
 SCRIPT_AUTHOR = 'mutantmonkey'
-SCRIPT_VERSION = '20141028'
+SCRIPT_VERSION = '20141029'
 SCRIPT_LICENSE = 'GPL3'
 SCRIPT_DESC = "encrypt messages in a channel with libsodium"
 
@@ -132,13 +132,31 @@ def command_cb(data, buf, args):
         #                         100000)
 
         channel_keys['{0}.{1}'.format(server, channel)] = key
+        weechat.bar_item_update(SCRIPT_NAME)
+
         return weechat.WEECHAT_RC_OK
     elif len(args) == 1 and args[0] == b'disable':
         server, channel = get_buffer_info(buf)
         del channel_keys['{0}.{1}'.format(server, channel)]
+        weechat.bar_item_update(SCRIPT_NAME)
+
         return weechat.WEECHAT_RC_OK
     else:
         return weechat.WEECHAT_RC_ERROR
+
+
+def statusbar_cb(data, item, window):
+    if window:
+        buf = weechat.window_get_pointer(window, 'buffer')
+    else:
+        buf = weechat.get_current_buffer()
+
+    server, channel = get_buffer_info(buf)
+    dict_key = '{0}.{1}'.format(server, channel)
+    if dict_key in channel_keys:
+        return "ENC"
+
+    return ""
 
 
 def get_buffer_info(buf):
@@ -162,3 +180,6 @@ if weechat.register(SCRIPT_NAME, SCRIPT_AUTHOR, SCRIPT_VERSION, SCRIPT_LICENSE,
                          "disable",
                          "command_cb",
                          "")
+
+    statusbar = weechat.bar_item_new(SCRIPT_NAME, 'statusbar_cb', '')
+    weechat.bar_item_update(SCRIPT_NAME)
