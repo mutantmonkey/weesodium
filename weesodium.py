@@ -15,14 +15,9 @@ SCRIPT_DESC = "encrypt messages in a channel with libsodium"
 channel_keys = {}
 
 
-def encrypt(msg, key, max_length=None):
-    # math.ceil(384 / 3) * 4 = 512
-
-    if max_length is not None:
-        pad_length = max_length - libnacl.crypto_secretbox_NONCEBYTES \
-            - libnacl.crypto_secretbox_MACBYTES
-        if len(msg) < pad_length:
-            msg += b'\x00' * (pad_length - len(msg))
+def encrypt(msg, key, length=None):
+    if length is not None and len(msg) < length:
+        msg += b'\x00' * (length - len(msg))
 
     box = libnacl.secret.SecretBox(key)
     ctxt = box.encrypt(msg)
@@ -95,7 +90,9 @@ def out_privmsg_cb(data, modifier, modifier_data, string):
         if dict_key in channel_keys:
             key = channel_keys[dict_key]
 
-            max_length = 270
+            # math.ceil(384 / 3) * 4 = 512
+            max_length = 300 - libnacl.crypto_secretbox_NONCEBYTES \
+                - libnacl.crypto_secretbox_MACBYTES
             if len(result['text']) > max_length:
                 # segment messages larger than max_length
                 out = b""
