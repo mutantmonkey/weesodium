@@ -75,7 +75,6 @@ def in_privmsg_cb(data, modifier, modifier_data, string):
                 result['text'] = decrypt(result['text'], key)
             except:
                 result['text'] = "Unable to decrypt: {}".format(result['text'])
-                return string
 
             # FIXME: sanitize these bits
             return b":{from} PRIVMSG {to} :{text}".format(**result)
