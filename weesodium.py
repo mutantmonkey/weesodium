@@ -112,6 +112,34 @@ def get_buffer_info(buf):
     return server, channel
 
 
+def command_cb(data, buf, args):
+    try:
+        args = shlex.split(args)
+    except:
+        return weechat.WEECHAT_RC_ERROR
+
+    if len(args) == 2 and args[0] == b'enable':
+        server, channel = get_buffer_info(buf)
+        key = hashlib.sha256(args[1]).digest()
+
+        channel_keys['{0}.{1}'.format(server, channel)] = key
+
+        weechat.prnt(buf, "This conversation is now encrypted.")
+        weechat.bar_item_update(SCRIPT_NAME)
+
+        return weechat.WEECHAT_RC_OK
+    elif len(args) == 1 and args[0] == b'disable':
+        server, channel = get_buffer_info(buf)
+        del channel_keys['{0}.{1}'.format(server, channel)]
+
+        weechat.prnt(buf, "This conversation is no longer encrypted.")
+        weechat.bar_item_update(SCRIPT_NAME)
+
+        return weechat.WEECHAT_RC_OK
+    else:
+        return weechat.WEECHAT_RC_ERROR
+
+
 def in_privmsg_cb(data, modifier, modifier_data, string):
     result = parse_privmsg(string)
     if result['to_channel'] is not None:
@@ -159,32 +187,17 @@ def out_privmsg_cb(data, modifier, modifier_data, string):
     return string
 
 
-def command_cb(data, buf, args):
-    try:
-        args = shlex.split(args)
-    except:
-        return weechat.WEECHAT_RC_ERROR
+def buffer_closing_cb(data, signal, signal_data):
+    server, channel = get_buffer_info(signal_data)
 
-    if len(args) == 2 and args[0] == b'enable':
-        server, channel = get_buffer_info(buf)
-        key = hashlib.sha256(args[1]).digest()
-
-        channel_keys['{0}.{1}'.format(server, channel)] = key
-
-        weechat.prnt(buf, "This conversation is now encrypted.")
-        weechat.bar_item_update(SCRIPT_NAME)
-
+    if server is not None and channel is not None:
+        dict_key = '{0}.{1}'.format(server, channel)
+        if dict_key in channel_keys:
+            del channel_keys[dict_key]
+            weechat.bar_item_update(SCRIPT_NAME)
         return weechat.WEECHAT_RC_OK
-    elif len(args) == 1 and args[0] == b'disable':
-        server, channel = get_buffer_info(buf)
-        del channel_keys['{0}.{1}'.format(server, channel)]
 
-        weechat.prnt(buf, "This conversation is no longer encrypted.")
-        weechat.bar_item_update(SCRIPT_NAME)
-
-        return weechat.WEECHAT_RC_OK
-    else:
-        return weechat.WEECHAT_RC_ERROR
+    return weechat.WEECHAT_RC_ERROR
 
 
 def statusbar_cb(data, item, window):
@@ -203,8 +216,6 @@ def statusbar_cb(data, item, window):
 
 if weechat.register(SCRIPT_NAME, SCRIPT_AUTHOR, SCRIPT_VERSION, SCRIPT_LICENSE,
                     SCRIPT_DESC, "", "UTF-8"):
-    weechat.hook_modifier('irc_in_privmsg', 'in_privmsg_cb', '')
-    weechat.hook_modifier('irc_out_privmsg', 'out_privmsg_cb', '')
     weechat.hook_command(SCRIPT_NAME,
                          "change weesodium options",
                          "[enable KEY] || "
@@ -214,6 +225,9 @@ if weechat.register(SCRIPT_NAME, SCRIPT_AUTHOR, SCRIPT_VERSION, SCRIPT_LICENSE,
                          "disable",
                          "command_cb",
                          "")
+    weechat.hook_modifier('irc_in_privmsg', 'in_privmsg_cb', '')
+    weechat.hook_modifier('irc_out_privmsg', 'out_privmsg_cb', '')
+    weechat.hook_signal('buffer_closing', 'buffer_closing_cb', '')
 
     statusbar = weechat.bar_item_new(SCRIPT_NAME, 'statusbar_cb', '')
     weechat.bar_item_update(SCRIPT_NAME)
