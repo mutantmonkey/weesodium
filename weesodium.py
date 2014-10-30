@@ -1,9 +1,33 @@
 # encoding: utf-8
+#
+# weesodium: encrypt messages in a channel with libsodium
+# DO NOT YET RELY ON THIS SCRIPT FOR STRONG SECURITY!
+#
+# Copyright (c) 2014 mutantmonkey
+#
+# Portions based upon weechat-otr:
+# Copyright (c) 2012-2014 Matthew M. Boedicker <matthewm@boedicker.org>
+#                         Nils Görs <weechatter@arcor.de>
+#                         Daniel "koolfy" Faucon <koolfy@koolfy.be>
+#                         Felix Eckhofer <felix@tribut.de>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 
 import base64
 import hashlib
 import libnacl.secret
 import shlex
+import sys
 import weechat
 
 SCRIPT_NAME = 'weesodium'
@@ -12,6 +36,7 @@ SCRIPT_VERSION = '20141029'
 SCRIPT_LICENSE = 'GPL3'
 SCRIPT_DESC = "encrypt messages in a channel with libsodium"
 
+IRC_SANITIZE_TABLE = dict((ord(char), None) for char in '\n\r\x00')
 channel_keys = {}
 
 
@@ -33,12 +58,6 @@ def decrypt(ctxt, key):
 
 
 def parse_privmsg(message):
-    # partially based upon weechat-otr, licensed under the GPL3
-    # Copyright (c) 2012-2014 Matthew M. Boedicker <matthewm@boedicker.org>
-    # Nils Görs <weechatter@arcor.de>
-    # Daniel "koolfy" Faucon <koolfy@koolfy.be>
-    # Felix Eckhofer <felix@tribut.de>
-
     weechat_result = weechat.info_get_hashtable('irc_message_parse',
                                                 {'message': message})
     if weechat_result['command'].upper() == 'PRIVMSG':
@@ -64,6 +83,35 @@ def parse_privmsg(message):
         raise Exception("Failed parsing PRIVMSG")
 
 
+def irc_sanitize(msg):
+    if sys.version_info.major >= 3:
+        msg = str(msg)
+    else:
+        msg = unicode(msg)
+
+    return msg.translate(IRC_SANITIZE_TABLE)
+
+
+def irc_in_privmsg_build(fromm, to, msg):
+    return ":{fromm} PRIVMSG {to} :{msg}".format(
+        fromm=irc_sanitize(fromm),
+        to=irc_sanitize(to),
+        msg=irc_sanitize(msg))
+
+
+def irc_out_privmsg_build(to, msg):
+    return "PRIVMSG {to} :{msg}".format(
+        to=irc_sanitize(to),
+        msg=irc_sanitize(msg))
+
+
+def get_buffer_info(buf):
+    server = weechat.buffer_get_string(buf, b'localvar_server').decode('utf-8')
+    channel = weechat.buffer_get_string(buf, b'localvar_channel').decode(
+        'utf-8')
+    return server, channel
+
+
 def in_privmsg_cb(data, modifier, modifier_data, string):
     result = parse_privmsg(string)
     if result['to_channel'] is not None:
@@ -76,8 +124,8 @@ def in_privmsg_cb(data, modifier, modifier_data, string):
             except:
                 result['text'] = "Unable to decrypt: {}".format(result['text'])
 
-            # FIXME: sanitize these bits
-            return b":{from} PRIVMSG {to} :{text}".format(**result)
+            return irc_in_privmsg_build(result['from'], result['to'],
+                                        result['text'])
 
     return string
 
@@ -94,24 +142,19 @@ def out_privmsg_cb(data, modifier, modifier_data, string):
                 - libnacl.crypto_secretbox_MACBYTES
             if len(result['text']) > max_length:
                 # segment messages larger than max_length
-                out = b""
+                out = ""
                 splits = 1 + (len(result['text']) // max_length)
                 for i in range(0, splits):
-                    text = encrypt(
+                    msg = encrypt(
                         result['text'][i * max_length:(i + 1) * max_length],
                         key,
                         max_length)
-
-                    # FIXME: sanitize these bits
-                    out += b"PRIVMSG {to} :{text}\n".format(to=result['to'],
-                                                            text=text)
+                    out += irc_out_privmsg_build(result['to'], msg)
 
                 return out
             else:
-                result['text'] = encrypt(result['text'], key, max_length)
-
-                # FIXME: sanitize these bits
-                return b"PRIVMSG {to} :{text}".format(**result)
+                msg = encrypt(result['text'], key, max_length)
+                return irc_out_privmsg_build(result['to'], msg)
 
     return string
 
@@ -125,10 +168,6 @@ def command_cb(data, buf, args):
     if len(args) == 2 and args[0] == b'enable':
         server, channel = get_buffer_info(buf)
         key = hashlib.sha256(args[1]).digest()
-
-        # requires python 2.7.8 or 3.4 :(
-        #key = hashlib.pbkdf_hmac('sha256', args[1], libnacl.randombytes(16),
-        #                         100000)
 
         channel_keys['{0}.{1}'.format(server, channel)] = key
 
@@ -162,16 +201,8 @@ def statusbar_cb(data, item, window):
     return ""
 
 
-def get_buffer_info(buf):
-    server = weechat.buffer_get_string(buf, b'localvar_server').decode('utf-8')
-    channel = weechat.buffer_get_string(buf, b'localvar_channel').decode(
-        'utf-8')
-    return server, channel
-
-
 if weechat.register(SCRIPT_NAME, SCRIPT_AUTHOR, SCRIPT_VERSION, SCRIPT_LICENSE,
                     SCRIPT_DESC, "", "UTF-8"):
-    # consider adding: notice, topic
     weechat.hook_modifier('irc_in_privmsg', 'in_privmsg_cb', '')
     weechat.hook_modifier('irc_out_privmsg', 'out_privmsg_cb', '')
     weechat.hook_command(SCRIPT_NAME,
