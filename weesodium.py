@@ -1,7 +1,8 @@
 # encoding: utf-8
 #
 # weesodium: encrypt messages in a channel with libsodium
-# DO NOT YET RELY ON THIS SCRIPT FOR STRONG SECURITY!
+# DO NOT YET RELY ON THIS SCRIPT FOR STRONG SECURITY, AS IT IS CURRENTLY
+# VULNERABLE TO REPLAY ATTACKS!
 #
 # Copyright (c) 2014 mutantmonkey
 #
