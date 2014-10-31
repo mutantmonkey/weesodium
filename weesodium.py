@@ -1,8 +1,7 @@
 # encoding: utf-8
 #
 # weesodium: encrypt messages in a channel with libsodium
-# DO NOT YET RELY ON THIS SCRIPT FOR STRONG SECURITY, AS IT IS CURRENTLY
-# VULNERABLE TO REPLAY ATTACKS!
+# DO NOT YET RELY ON THIS SCRIPT FOR STRONG SECURITY!
 #
 # Copyright (c) 2014 mutantmonkey
 #
@@ -28,33 +27,78 @@ import base64
 import hashlib
 import libnacl.secret
 import shlex
+import struct
 import sys
+import time
 import weechat
 
 SCRIPT_NAME = 'weesodium'
 SCRIPT_AUTHOR = 'mutantmonkey'
-SCRIPT_VERSION = '20141029'
+SCRIPT_VERSION = '20141030'
 SCRIPT_LICENSE = 'GPL3'
 SCRIPT_DESC = "encrypt messages in a channel with libsodium"
 
+# messages outside of the current timestamp +/- this value will be rejected
+TIMESTAMP_WINDOW_SECS = 300
+
 IRC_SANITIZE_TABLE = dict((ord(char), None) for char in '\n\r\x00')
-channel_keys = {}
+channel_data = {}
 
 
-def encrypt(msg, key, length=None):
+class WeeSodiumChannel(object):
+    def __init__(self, key):
+        self.key = key
+        self.counter = 0
+        self.nonces = set()
+
+    def get_nonce(self, nick):
+        ts = int(time.time())
+        nick_hash = hashlib.sha256(nick).digest()[:120]
+
+        nonce = struct.pack('>QB15s', ts, self.counter, nick_hash)
+        self.nonces.add(nonce)
+        self.counter += 1
+
+        return nonce
+
+
+class NonceError(Exception):
+    pass
+
+
+def encrypt(channel, nick, msg, length=None):
     if length is not None and len(msg) < length:
         msg += b'\x00' * (length - len(msg))
 
-    box = libnacl.secret.SecretBox(key)
-    ctxt = box.encrypt(msg)
+    box = libnacl.secret.SecretBox(channel.key)
+    ctxt = box.encrypt(msg, channel.get_nonce(nick))
     return base64.b64encode(ctxt)
 
 
-def decrypt(ctxt, key):
+def decrypt(channel, ctxt):
     ctxt = base64.b64decode(ctxt)
-    box = libnacl.secret.SecretBox(key)
-    msg = box.decrypt(ctxt)
+    nonce = ctxt[:libnacl.crypto_secretbox_NONCEBYTES]
+    ctxt = ctxt[libnacl.crypto_secretbox_NONCEBYTES:]
+
+    if len(nonce) != libnacl.crypto_secretbox_NONCEBYTES:
+        raise ValueError("Invalid nonce")
+    elif nonce in channel.nonces:
+        raise NonceError(
+            "Nonce reuse detected; this is either a bug or a replay attack in "
+            "progress.")
+
+    ts, counter, nick_hash = struct.unpack('>QB15s', nonce)
+    if ts < time.time() - TIMESTAMP_WINDOW_SECS or \
+            ts > time.time() + TIMESTAMP_WINDOW_SECS:
+        raise NonceError(
+            "Message timestamp was outside of the allowable window. Please "
+            "check that your clock is set correctly.")
+
+    box = libnacl.secret.SecretBox(channel.key)
+    msg = box.decrypt(ctxt, nonce)
     msg = msg.rstrip(b'\x00')
+
+    channel.nonces.add(nonce)
     return msg
 
 
@@ -123,7 +167,7 @@ def command_cb(data, buf, args):
         server, channel = get_buffer_info(buf)
         key = hashlib.sha256(args[1]).digest()
 
-        channel_keys['{0}.{1}'.format(server, channel)] = key
+        channel_data['{0}.{1}'.format(server, channel)] = WeeSodiumChannel(key)
 
         weechat.prnt(buf, "This conversation is now encrypted.")
         weechat.bar_item_update(SCRIPT_NAME)
@@ -131,7 +175,7 @@ def command_cb(data, buf, args):
         return weechat.WEECHAT_RC_OK
     elif len(args) == 1 and args[0] == b'disable':
         server, channel = get_buffer_info(buf)
-        del channel_keys['{0}.{1}'.format(server, channel)]
+        del channel_data['{0}.{1}'.format(server, channel)]
 
         weechat.prnt(buf, "This conversation is no longer encrypted.")
         weechat.bar_item_update(SCRIPT_NAME)
@@ -145,11 +189,17 @@ def in_privmsg_cb(data, modifier, modifier_data, string):
     result = parse_privmsg(string)
     if result['to_channel'] is not None:
         dict_key = '{0}.{1}'.format(modifier_data, result['to_channel'])
-        if dict_key in channel_keys:
-            key = channel_keys[dict_key]
+        if dict_key in channel_data:
+            channel = channel_data[dict_key]
 
             try:
-                result['text'] = decrypt(result['text'], key)
+                result['text'] = decrypt(channel, result['text'])
+            except NonceError as e:
+                buf = weechat.info_get('irc_buffer', '{0},{1}'.format(
+                    modifier_data, result['to_channel']))
+                weechat.prnt(buf, "Error from {fromm}: {err}".format(
+                    fromm=result['from'], err=e))
+                return ""
             except:
                 result['text'] = "Unable to decrypt: {}".format(result['text'])
 
@@ -163,26 +213,29 @@ def out_privmsg_cb(data, modifier, modifier_data, string):
     result = parse_privmsg(string)
     if result['to_channel'] is not None:
         dict_key = '{0}.{1}'.format(modifier_data, result['to_channel'])
-        if dict_key in channel_keys:
-            key = channel_keys[dict_key]
+        if dict_key in channel_data:
+            channel = channel_data[dict_key]
 
-            # math.ceil(384 / 3) * 4 = 512
-            max_length = 300 - libnacl.crypto_secretbox_NONCEBYTES \
+            # this should result in messages that are ~396 characters long
+            max_length = 297 - libnacl.crypto_secretbox_NONCEBYTES \
                 - libnacl.crypto_secretbox_MACBYTES
             if len(result['text']) > max_length:
                 # segment messages larger than max_length
                 out = ""
                 splits = 1 + (len(result['text']) // max_length)
                 for i in range(0, splits):
+                    nonce = channel.get_nonce()
                     msg = encrypt(
+                        channel,
+                        result['from'],
                         result['text'][i * max_length:(i + 1) * max_length],
-                        key,
                         max_length)
                     out += irc_out_privmsg_build(result['to'], msg)
 
                 return out
             else:
-                msg = encrypt(result['text'], key, max_length)
+                msg = encrypt(channel, result['from'], result['text'],
+                              max_length)
                 return irc_out_privmsg_build(result['to'], msg)
 
     return string
@@ -193,8 +246,8 @@ def buffer_closing_cb(data, signal, signal_data):
 
     if server is not None and channel is not None:
         dict_key = '{0}.{1}'.format(server, channel)
-        if dict_key in channel_keys:
-            del channel_keys[dict_key]
+        if dict_key in channel_data:
+            del channel_data[dict_key]
             weechat.bar_item_update(SCRIPT_NAME)
         return weechat.WEECHAT_RC_OK
 
@@ -209,7 +262,7 @@ def statusbar_cb(data, item, window):
 
     server, channel = get_buffer_info(buf)
     dict_key = '{0}.{1}'.format(server, channel)
-    if dict_key in channel_keys:
+    if dict_key in channel_data:
         return "ENC"
 
     return ""
