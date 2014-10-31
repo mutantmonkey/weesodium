@@ -224,7 +224,6 @@ def out_privmsg_cb(data, modifier, modifier_data, string):
                 out = ""
                 splits = 1 + (len(result['text']) // max_length)
                 for i in range(0, splits):
-                    nonce = channel.get_nonce()
                     msg = encrypt(
                         channel,
                         result['from'],
