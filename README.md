@@ -10,5 +10,9 @@ how WeeSodium works and the threat models it protects against soon.
 1. Drop weesodium.py into ~/.weechat/python/ or wherever you put your Python
    WeeChat scripts.
 2. Run `/python load weesodium.py` in your WeeChat.
-3. In the channel you want to use this with, do `/weesodium enable SECRETKEY`.
-4. Use `/weesodium disable` to stop encryption in that channel.
+3. Add `[weesodium]` to your `weechat.bar.status.items` setting. If you are using the default WeeChat setting currently, you can do:
+   ```
+   /set weechat.bar.status.items "[time],[buffer_last_number],[buffer_plugin],buffer_number+:+buffer_name+(buffer_modes)+{buffer_nicklist_count}+buffer_zoom+buffer_filter,[weesodium],[lag],[hotlist],completion,scroll"
+   ```
+4. In the channel you want to use this with, do `/weesodium enable SECRETKEY`.
+5. Use `/weesodium disable` to stop encryption in that channel.
