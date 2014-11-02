@@ -67,6 +67,7 @@ class NonceError(Exception):
 
 
 def encrypt(channel, nick, msg, length=None):
+    # pad message to length, if one is provided
     if length is not None and len(msg) < length:
         msg += b'\x00' * (length - len(msg))
 
@@ -216,7 +217,7 @@ def out_privmsg_cb(data, modifier, modifier_data, string):
         if dict_key in channel_data:
             channel = channel_data[dict_key]
 
-            # this should result in messages that are ~396 characters long
+            # this should result in messages that are 396 bytes long
             max_length = 297 - libnacl.crypto_secretbox_NONCEBYTES \
                 - libnacl.crypto_secretbox_MACBYTES
             if len(result['text']) > max_length:
