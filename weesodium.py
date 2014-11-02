@@ -66,6 +66,7 @@ class NonceError(Exception):
     pass
 
 
+# helper functions {{{
 def encrypt(channel, nick, msg, length=None):
     # pad message to length, if one is provided
     if length is not None and len(msg) < length:
@@ -156,6 +157,68 @@ def get_buffer_info(buf):
     channel = weechat.buffer_get_string(buf, b'localvar_channel').decode(
         'utf-8')
     return server, channel
+# }}}
+
+
+# callbacks {{{
+def reload_config_cb(data, config_file):
+    return weechat.config_reload(config_file)
+
+
+def keys_read_option_cb(data, config_file, section, option, value):
+    """Read option callback: load keys from config options"""
+
+    weeopt = weechat.config_new_option(config_file, section, option, 'string',
+                                       'key', '', 0, 0, '', value, 0,
+                                       'keys_check_option_cb', '', '', '',
+                                       '', '')
+    if not weeopt:
+        return weechat.WEECHAT_CONFIG_OPTION_SET_ERROR
+
+    option_split = option.split('.')
+    if len(option_split) == 2 and value.startswith('${sec.data.'):
+        channel_key = weechat.string_eval_expression(value, {}, {}, {})
+        channel_data[option] = WeeSodiumChannel(channel_key)
+
+    return weechat.WEECHAT_CONFIG_OPTION_SET_OK_CHANGED
+
+
+def keys_create_option_cb(data, config_file, section, option, value):
+    if not keys_check_option_cb('', option, value):
+        weechat.prnt('',
+                     "WeeSodium keys must be stored using WeeChat's secured "
+                     "data storage. See /help secure for info on this.")
+        return weechat.WEECHAT_CONFIG_OPTION_SET_ERROR
+
+    option_split = option.split('.')
+    if len(option_split) != 2:
+        weechat.prnt('',
+                     "Both a server and a channel are required to be entered "
+                     "as the key for the config option. For example: "
+                     "/set weesodium.keys.example.#weesodium "
+                     "${sec.data.wskey}")
+        return weechat.WEECHAT_CONFIG_OPTION_SET_ERROR
+
+    weeopt = weechat.config_new_option(config_file, section, option, 'string',
+                                       'key', '', 0, 0, '', value, 0,
+                                       'keys_check_option_cb', '', '', '',
+                                       '', '')
+    if not weeopt:
+        return weechat.WEECHAT_CONFIG_OPTION_SET_ERROR
+
+    option_split = option.split('.')
+    if len(option_split) == 2 and value.startswith('${sec.data.'):
+        channel_key = weechat.string_eval_expression(value, {}, {}, {})
+        channel_data[option] = WeeSodiumChannel(channel_key)
+
+    return weechat.WEECHAT_CONFIG_OPTION_SET_OK_CHANGED
+
+
+def keys_check_option_cb(data, option, value):
+    if value.startswith('${sec.data.'):
+        return 1
+    else:
+        return 0
 
 
 def command_cb(data, buf, args):
@@ -265,10 +328,21 @@ def statusbar_cb(data, item, window):
         return "ENC"
 
     return ""
+# }}}
 
 
 if weechat.register(SCRIPT_NAME, SCRIPT_AUTHOR, SCRIPT_VERSION, SCRIPT_LICENSE,
                     SCRIPT_DESC, "", "UTF-8"):
+    # load config
+    config_file = weechat.config_new(SCRIPT_NAME, 'reload_config_cb', '')
+    weechat.config_new_section(config_file, 'keys', 1, 1,
+                               'keys_read_option_cb', '',
+                               '', '',
+                               '', '',
+                               'keys_create_option_cb', '',
+                               '', '')
+    weechat.config_read(config_file)
+
     weechat.hook_command(SCRIPT_NAME,
                          "change weesodium options",
                          "[enable KEY] || "
