@@ -34,7 +34,7 @@ import weechat
 
 SCRIPT_NAME = 'weesodium'
 SCRIPT_AUTHOR = 'mutantmonkey'
-SCRIPT_VERSION = '20141030'
+SCRIPT_VERSION = '20141102'
 SCRIPT_LICENSE = 'GPL3'
 SCRIPT_DESC = "encrypt messages in a channel with libsodium"
 
