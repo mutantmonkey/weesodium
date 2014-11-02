@@ -47,7 +47,7 @@ channel_data = {}
 
 class WeeSodiumChannel(object):
     def __init__(self, key):
-        self.key = key
+        self.key = hashlib.sha256(key).digest()
         self.counter = 0
         self.nonces = set()
 
@@ -166,9 +166,8 @@ def command_cb(data, buf, args):
 
     if len(args) == 2 and args[0] == b'enable':
         server, channel = get_buffer_info(buf)
-        key = hashlib.sha256(args[1]).digest()
-
-        channel_data['{0}.{1}'.format(server, channel)] = WeeSodiumChannel(key)
+        channel_data['{0}.{1}'.format(server, channel)] = WeeSodiumChannel(
+            args[1])
 
         weechat.prnt(buf, "This conversation is now encrypted.")
         weechat.bar_item_update(SCRIPT_NAME)
