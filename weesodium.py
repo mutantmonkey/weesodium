@@ -293,6 +293,7 @@ def out_privmsg_cb(data, modifier, modifier_data, string):
                         result['text'][i * max_length:(i + 1) * max_length],
                         max_length)
                     out += irc_out_privmsg_build(result['to'], msg)
+                    out += "\r\n"
 
                 return out
             else:
