@@ -131,7 +131,7 @@ def parse_privmsg(message):
 
 
 def irc_sanitize(msg):
-    if sys.version_info.major >= 3:
+    if sys.version_info[0] >= 3:
         msg = str(msg)
     else:
         msg = unicode(msg)
