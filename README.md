@@ -22,4 +22,4 @@ If you want to store keys persistently so that you do not have to enter them
 each time you restart WeeChat, you can use WeeChat's secure storage:
 
 1. `/sec set weesodium SECRETKEY`
-2. `/set weesodium.keys.weesodium.#weesodium ${sec.data.weesodium}`
+2. `/set weesodium.keys.servername.#channelname ${sec.data.weesodium}`
