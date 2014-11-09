@@ -55,7 +55,7 @@ class WeeSodiumChannel(object):
         ts = int(time.time())
         nick_hash = hashlib.sha256(nick).digest()[:120]
 
-        nonce = struct.pack('>QB15s', ts, self.counter, nick_hash)
+        nonce = struct.pack('>QB15s', ts, self.counter % 255, nick_hash)
         self.nonces.add(nonce)
         self.counter += 1
 
