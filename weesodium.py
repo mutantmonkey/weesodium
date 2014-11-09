@@ -279,27 +279,34 @@ def out_privmsg_cb(data, modifier, modifier_data, string):
         if dict_key in channel_data:
             channel = channel_data[dict_key]
 
-            # this should result in messages that are 396 bytes long
-            max_length = 297 - libnacl.crypto_secretbox_NONCEBYTES \
-                - libnacl.crypto_secretbox_MACBYTES
-            if len(result['text']) > max_length:
-                # segment messages larger than max_length
-                out = ""
-                splits = 1 + (len(result['text']) // max_length)
-                for i in range(0, splits):
-                    msg = encrypt(
-                        channel,
-                        result['from'],
-                        result['text'][i * max_length:(i + 1) * max_length],
-                        max_length)
-                    out += irc_out_privmsg_build(result['to'], msg)
-                    out += "\r\n"
+            try:
+                # this should result in messages that are 396 bytes long
+                max_length = 297 - libnacl.crypto_secretbox_NONCEBYTES \
+                    - libnacl.crypto_secretbox_MACBYTES
+                if len(result['text']) > max_length:
+                    # segment messages larger than max_length
+                    out = ""
+                    splits = 1 + (len(result['text']) // max_length)
+                    for i in range(0, splits):
+                        msg = encrypt(
+                            channel,
+                            result['from'],
+                            result['text'][
+                                i * max_length:(i + 1) * max_length],
+                            max_length)
+                        out += irc_out_privmsg_build(result['to'], msg)
+                        out += "\r\n"
 
-                return out
-            else:
-                msg = encrypt(channel, result['from'], result['text'],
-                              max_length)
-                return irc_out_privmsg_build(result['to'], msg)
+                    return out
+                else:
+                    msg = encrypt(channel, result['from'], result['text'],
+                                  max_length)
+                    return irc_out_privmsg_build(result['to'], msg)
+            except Exception as e:
+                buf = weechat.info_get('irc_buffer', '{0},{1}'.format(
+                    modifier_data, result['to_channel']))
+                weechat.prnt(buf, "Error while encrypting: {}".format(e))
+                return ""
 
     return string
 
