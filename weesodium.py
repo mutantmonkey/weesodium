@@ -68,6 +68,9 @@ class NonceError(Exception):
 
 # helper functions {{{
 def encrypt(channel, nick, msg, length=None):
+    # convert message to UTF-8
+    msg = msg.encode('utf-8', 'replace')
+
     # pad message to length, if one is provided
     if length is not None and len(msg) < length:
         msg += b'\x00' * (length - len(msg))
@@ -99,6 +102,7 @@ def decrypt(channel, ctxt):
     box = libnacl.secret.SecretBox(channel.key)
     msg = box.decrypt(ctxt, nonce)
     msg = msg.rstrip(b'\x00')
+    msg = msg.decode('utf-8', 'replace')
 
     channel.nonces.add(nonce)
     return msg
@@ -108,12 +112,13 @@ def parse_privmsg(message):
     weechat_result = weechat.info_get_hashtable('irc_message_parse',
                                                 {'message': message})
     if weechat_result['command'].upper() == 'PRIVMSG':
-        target, text = weechat_result['arguments'].split(' ', 1)
+        args = weechat_result['arguments'].decode('utf-8', 'replace')
+        target, text = args.split(' ', 1)
         if text.startswith(':'):
             text = text[1:]
 
         result = {
-            'from': weechat_result['host'].decode('utf-8'),
+            'from': weechat_result['host'].decode('utf-8', 'replace'),
             'to': target,
             'text': text,
         }
@@ -140,22 +145,24 @@ def irc_sanitize(msg):
 
 
 def irc_in_privmsg_build(fromm, to, msg):
-    return ":{fromm} PRIVMSG {to} :{msg}".format(
+    return u":{fromm} PRIVMSG {to} :{msg}".format(
         fromm=irc_sanitize(fromm),
         to=irc_sanitize(to),
-        msg=irc_sanitize(msg))
+        msg=irc_sanitize(msg)).encode('utf-8', 'replace')
 
 
 def irc_out_privmsg_build(to, msg):
-    return "PRIVMSG {to} :{msg}".format(
+    return u"PRIVMSG {to} :{msg}".format(
         to=irc_sanitize(to),
-        msg=irc_sanitize(msg))
+        msg=irc_sanitize(msg)).encode('utf-8', 'replace')
 
 
 def get_buffer_info(buf):
-    server = weechat.buffer_get_string(buf, b'localvar_server').decode('utf-8')
+    server = weechat.buffer_get_string(buf, b'localvar_server').decode(
+        'utf-8', 'replace')
     channel = weechat.buffer_get_string(buf, b'localvar_channel').decode(
-        'utf-8')
+        'utf-8', 'replace')
+
     return server, channel
 # }}}
 
