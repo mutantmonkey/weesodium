@@ -21,5 +21,5 @@ how WeeSodium works and the threat models it protects against soon.
 If you want to store keys persistently so that you do not have to enter them
 each time you restart WeeChat, you can use WeeChat's secure storage:
 
-1. `/sec set weesodium SECRETKEY`
+1. `/secure set weesodium SECRETKEY`
 2. `/set weesodium.keys.servername.#channelname ${sec.data.weesodium}`
