@@ -34,7 +34,7 @@ import weechat
 
 SCRIPT_NAME = 'weesodium'
 SCRIPT_AUTHOR = 'mutantmonkey'
-SCRIPT_VERSION = '20141102'
+SCRIPT_VERSION = '20150726'
 SCRIPT_LICENSE = 'GPL3'
 SCRIPT_DESC = "encrypt messages in a channel with libsodium"
 
@@ -55,7 +55,7 @@ class WeeSodiumChannel(object):
         ts = int(time.time())
         nick_hash = hashlib.sha256(nick).digest()[:120]
 
-        nonce = struct.pack('>QB15s', ts, self.counter % 255, nick_hash)
+        nonce = struct.pack('>QB15s', ts, self.counter % 256, nick_hash)
         self.nonces.add(nonce)
         self.counter += 1
 
@@ -236,7 +236,7 @@ def command_cb(data, buf, args):
 
     if len(args) == 2 and args[0] == b'enable':
         server, channel = get_buffer_info(buf)
-        channel_data['{0}.{1}'.format(server, channel)] = WeeSodiumChannel(
+        channel_data[u'{0}.{1}'.format(server, channel)] = WeeSodiumChannel(
             args[1])
 
         weechat.prnt(buf, "This conversation is now encrypted.")
@@ -245,7 +245,7 @@ def command_cb(data, buf, args):
         return weechat.WEECHAT_RC_OK
     elif len(args) == 1 and args[0] == b'disable':
         server, channel = get_buffer_info(buf)
-        del channel_data['{0}.{1}'.format(server, channel)]
+        del channel_data[u'{0}.{1}'.format(server, channel)]
 
         weechat.prnt(buf, "This conversation is no longer encrypted.")
         weechat.bar_item_update(SCRIPT_NAME)
@@ -258,7 +258,7 @@ def command_cb(data, buf, args):
 def in_privmsg_cb(data, modifier, modifier_data, string):
     result = parse_privmsg(string)
     if result['to_channel'] is not None:
-        dict_key = '{0}.{1}'.format(modifier_data, result['to_channel'])
+        dict_key = u'{0}.{1}'.format(modifier_data, result['to_channel'])
         if dict_key in channel_data:
             channel = channel_data[dict_key]
 
@@ -282,7 +282,7 @@ def in_privmsg_cb(data, modifier, modifier_data, string):
 def out_privmsg_cb(data, modifier, modifier_data, string):
     result = parse_privmsg(string)
     if result['to_channel'] is not None:
-        dict_key = '{0}.{1}'.format(modifier_data, result['to_channel'])
+        dict_key = u'{0}.{1}'.format(modifier_data, result['to_channel'])
         if dict_key in channel_data:
             channel = channel_data[dict_key]
 
@@ -322,7 +322,7 @@ def buffer_closing_cb(data, signal, signal_data):
     server, channel = get_buffer_info(signal_data)
 
     if server is not None and channel is not None:
-        dict_key = '{0}.{1}'.format(server, channel)
+        dict_key = u'{0}.{1}'.format(server, channel)
         if dict_key in channel_data:
             del channel_data[dict_key]
             weechat.bar_item_update(SCRIPT_NAME)
@@ -338,7 +338,7 @@ def statusbar_cb(data, item, window):
         buf = weechat.get_current_buffer()
 
     server, channel = get_buffer_info(buf)
-    dict_key = '{0}.{1}'.format(server, channel)
+    dict_key = u'{0}.{1}'.format(server, channel)
     if dict_key in channel_data:
         return "ENC"
 
