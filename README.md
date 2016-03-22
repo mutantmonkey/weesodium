@@ -3,8 +3,24 @@
 WeeSodium is a WeeChat script for encrypting and authenticating messages in an
 IRC channel with a shared key.
 
-*DO NOT YET RELY ON THIS SCRIPT FOR STRONG SECURITY!* I hope to better explain
-how WeeSodium works and the threat models it protects against soon.
+## Warning
+*DO NOT (EVER) RELY ON THIS SCRIPT FOR STRONG SECURITY!* I hope to better
+explain how WeeSodium works and the threat models it protects against soon.
+
+Additionally, you should be aware that:
+
+* IRC is not a secure protocol and has a number of properties that make it
+  next to impossible to rely upon for secure messaging.
+* You must still rely on TLS to protect the underlying connections between
+  clients and the server. If you do not, you are leaking any credentials and
+  lots and lots of metadata. (Social graph analysis anyone?)
+* WeeSodium is only intended to provide a minimal level of message
+  confidentiality from the IRC server and its operator. It is an experiment and
+  any actual security properties are probably just incidental.
+* WeeSodium only encrypts message contents. It does not support encrypting the
+  topic or any notices sent to the channel.
+* WeeSodium is not for encrypting PMs. Use OTR for this; it provides much
+  stronger security properties and is better audited.
 
 ## Usage
 1. Drop weesodium.py into ~/.weechat/python/ or wherever you put your Python
