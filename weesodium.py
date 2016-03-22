@@ -27,14 +27,12 @@ import base64
 import hashlib
 import libnacl.secret
 import shlex
-import struct
 import sys
-import time
 import weechat
 
 SCRIPT_NAME = 'weesodium'
 SCRIPT_AUTHOR = 'mutantmonkey'
-SCRIPT_VERSION = '20150726'
+SCRIPT_VERSION = '20160321'
 SCRIPT_LICENSE = 'GPL3'
 SCRIPT_DESC = "encrypt messages in a channel with libsodium"
 
@@ -51,16 +49,6 @@ class WeeSodiumChannel(object):
         self.counter = 0
         self.nonces = set()
 
-    def get_nonce(self, nick):
-        ts = int(time.time())
-        nick_hash = hashlib.sha256(nick).digest()[:120]
-
-        nonce = struct.pack('>QB15s', ts, self.counter % 256, nick_hash)
-        self.nonces.add(nonce)
-        self.counter += 1
-
-        return nonce
-
 
 class NonceError(Exception):
     pass
@@ -76,7 +64,9 @@ def encrypt(channel, nick, msg, length=None):
         msg += b'\x00' * (length - len(msg))
 
     box = libnacl.secret.SecretBox(channel.key)
-    ctxt = box.encrypt(msg, channel.get_nonce(nick))
+    ctxt = box.encrypt(msg)
+
+    channel.nonces.add(ctxt[:libnacl.crypto_secretbox_NONCEBYTES])
     return base64.b64encode(ctxt)
 
 
@@ -86,18 +76,11 @@ def decrypt(channel, ctxt):
     ctxt = ctxt[libnacl.crypto_secretbox_NONCEBYTES:]
 
     if len(nonce) != libnacl.crypto_secretbox_NONCEBYTES:
-        raise ValueError("Invalid nonce")
+        raise ValueError("Invalid nonce size")
     elif nonce in channel.nonces:
         raise NonceError(
             "Nonce reuse detected; this is either a bug or a replay attack in "
             "progress.")
-
-    ts, counter, nick_hash = struct.unpack('>QB15s', nonce)
-    if ts < time.time() - TIMESTAMP_WINDOW_SECS or \
-            ts > time.time() + TIMESTAMP_WINDOW_SECS:
-        raise NonceError(
-            "Message timestamp was outside of the allowable window. Please "
-            "check that your clock is set correctly.")
 
     box = libnacl.secret.SecretBox(channel.key)
     msg = box.decrypt(ctxt, nonce)
