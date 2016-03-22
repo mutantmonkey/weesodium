@@ -36,9 +36,6 @@ SCRIPT_VERSION = '20160321'
 SCRIPT_LICENSE = 'GPL3'
 SCRIPT_DESC = "encrypt messages in a channel with libsodium"
 
-# messages outside of the current timestamp +/- this value will be rejected
-TIMESTAMP_WINDOW_SECS = 300
-
 IRC_SANITIZE_TABLE = dict((ord(char), None) for char in '\n\r\x00')
 channel_data = {}
 
